@@ -1,3 +1,4 @@
+import time
 import tkinter as tk
 from tkinter import messagebox
 import subprocess
@@ -6,34 +7,9 @@ import os
 import signal
 import json
 
+HISTORY_FILE = "history.txt"
+
 DATA_JSON_FILE_NAME = 'data.json'
-
-
-class EntryWithPlaceholder(tk.Entry):
-    def __init__(self, master=None, placeholder="PLACEHOLDER", color='grey'):
-        super().__init__(master)
-
-        self.placeholder = placeholder
-        self.placeholder_color = color
-        self.default_fg_color = self['fg']
-
-        self.bind("<FocusIn>", self.foc_in)
-        self.bind("<FocusOut>", self.foc_out)
-
-        self.put_placeholder()
-
-    def put_placeholder(self):
-        self.insert(0, self.placeholder)
-        self['fg'] = self.placeholder_color
-
-    def foc_in(self, *args):
-        if self['fg'] == self.placeholder_color:
-            self.delete('0', 'end')
-            self['fg'] = self.default_fg_color
-
-    def foc_out(self, *args):
-        if not self.get():
-            self.put_placeholder()
 
 
 class AppEntry:
@@ -51,20 +27,22 @@ class Application(tk.Frame):
         super().__init__(master)
         self.master = master
         self.pack()
+        self.columnconfigure(2, weight=1)
         self.row_index = 2
         self.data = []
         self.create_widgets()
+        self.history_appender = open(HISTORY_FILE, "a+")
 
     def create_widgets(self):
         self.add_row = tk.Button(self)
         self.add_row["text"] = "add row"
         self.add_row["command"] = self.add_new_row
-        self.add_row.grid(row=1, column=1)
+        self.add_row.grid(row=1, column=1,sticky=tk.W+tk.E+tk.N+tk.S)
 
         self.save_button = tk.Button(self)
         self.save_button["text"] = "save tabs"
         self.save_button["command"] = self.save_tabs
-        self.save_button.grid(row=1, column=2)
+        self.save_button.grid(row=1, column=2,sticky=tk.W+tk.E+tk.N+tk.S)
 
         with open(DATA_JSON_FILE_NAME, "r") as read_file:
             data = json.load(read_file)
@@ -72,7 +50,6 @@ class Application(tk.Frame):
                 entry = self.add_new_row().entry
                 entry.delete(0, tk.END)
                 entry.insert(0, item)
-
 
     def create_line(self, row):
         entry_data = AppEntry()
@@ -89,8 +66,15 @@ class Application(tk.Frame):
         def check_box_callback():
             if entry_data.tk_int_var.get() == 1 and entry_data.process is None:
                 command_text = entry_data.entry.get()
-                entry_data.process = subprocess.Popen(args=command_text, shell=True, stdout=subprocess.PIPE,
-                                                      stderr=subprocess.PIPE, preexec_fn=os.setsid)
+                self.history_appender.write(command_text + "\r\n")
+                self.history_appender.flush()
+                timestamp = str(int(time.time()))
+                entry_data.process = subprocess.Popen(
+                    args="bash ./loop.sh " + command_text + " > " + timestamp + ".log 2>&1",
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    preexec_fn=os.setsid)
                 threading.Thread(target=process_wait).start()
 
             elif entry_data.tk_int_var.get() == 0 and entry_data.process is not None:
@@ -111,14 +95,14 @@ class Application(tk.Frame):
 
         tk_int_var = tk.IntVar()
         checkbutton = tk.Checkbutton(master=self, command=check_box_callback, variable=tk_int_var)
-        checkbutton.grid(row=row, column=1)
-        entry = EntryWithPlaceholder(self, 'command')
-        entry.grid(row=row, column=2)
+        checkbutton.grid(row=row, column=1,sticky=tk.W+tk.E+tk.N+tk.S)
+        entry = tk.Entry(self)
+        entry.grid(row=row, column=2,sticky=tk.W+tk.E+tk.N+tk.S)
 
         delete_button = tk.Button(self)
         delete_button["text"] = "delete row"
         delete_button["command"] = delele_button_callback
-        delete_button.grid(row=row, column=3)
+        delete_button.grid(row=row, column=3,sticky=tk.W+tk.E+tk.N+tk.S)
 
         entry_data.checkbutton = checkbutton
         entry_data.entry = entry
@@ -143,6 +127,7 @@ class Application(tk.Frame):
 
 
 root = tk.Tk()
-root.geometry("400x200")
+root.geometry("800x200")
 app = Application(master=root)
+app.pack(fill="x",expand=True)
 app.mainloop()
