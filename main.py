@@ -4,6 +4,9 @@ import subprocess
 import threading
 import os
 import signal
+import json
+
+DATA_JSON_FILE_NAME = 'data.json'
 
 
 class EntryWithPlaceholder(tk.Entry):
@@ -33,15 +36,14 @@ class EntryWithPlaceholder(tk.Entry):
             self.put_placeholder()
 
 
-class Context:
-    def __init__(self):
-        self.history = []
-        self.tabs = []
-
-
 class AppEntry:
     def __init__(self):
-        pass
+        self.checkbutton = None
+        self.entry = None
+        self.tk_int_var = None
+        self.row = None
+        self.process = None
+        self.delete_button = None
 
 
 class Application(tk.Frame):
@@ -49,15 +51,28 @@ class Application(tk.Frame):
         super().__init__(master)
         self.master = master
         self.pack()
-        self.create_widgets()
         self.row_index = 2
         self.data = []
+        self.create_widgets()
 
     def create_widgets(self):
         self.add_row = tk.Button(self)
         self.add_row["text"] = "add row"
         self.add_row["command"] = self.add_new_row
         self.add_row.grid(row=1, column=1)
+
+        self.save_button = tk.Button(self)
+        self.save_button["text"] = "save tabs"
+        self.save_button["command"] = self.save_tabs
+        self.save_button.grid(row=1, column=2)
+
+        with open(DATA_JSON_FILE_NAME, "r") as read_file:
+            data = json.load(read_file)
+            for item in data:
+                entry = self.add_new_row().entry
+                entry.delete(0, tk.END)
+                entry.insert(0, item)
+
 
     def create_line(self, row):
         entry_data = AppEntry()
@@ -112,14 +127,19 @@ class Application(tk.Frame):
         entry_data.process = None
         entry_data.delete_button = delete_button
         self.data.append(entry_data)
+        return entry_data
 
     def add_new_row(self):
         self.row_index = self.row_index + 1
-        self.create_line(self.row_index)
-        pass
+        return self.create_line(self.row_index)
 
     def delete_message_box_result(self):
         return messagebox.askquestion("Delete", "Are You Sure?", icon='warning')
+
+    def save_tabs(self):
+        dump = list(map(lambda x: x.entry.get(), self.data))
+        with open(DATA_JSON_FILE_NAME, 'w') as outfile:
+            json.dump(dump, outfile)
 
 
 root = tk.Tk()
